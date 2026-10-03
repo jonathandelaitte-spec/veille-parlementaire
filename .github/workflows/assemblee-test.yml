@@ -14,6 +14,10 @@ jobs:
             "http://data.assemblee-nationale.fr/static/openData/repository/17/loi/dossiers_legislatifs/Dossiers_Legislatifs.json.zip" \
             -o assemblee.zip
 
-      - name: Inspecter le fichier
+      - name: Inspecter un dossier
         run: |
-          unzip -l assemblee.zip | head -30
+          fichier=$(unzip -Z1 assemblee.zip | grep '^json/dossierParlementaire/.*\.json$' | head -1)
+          echo "Fichier sélectionné : $fichier"
+          echo ""
+          echo "Contenu :"
+          unzip -p assemblee.zip "$fichier" | python -m json.tool | head -120
