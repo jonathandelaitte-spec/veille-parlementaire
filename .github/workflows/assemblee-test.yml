@@ -1,23 +1,16 @@
-name: Test données Assemblée nationale
-
 on:
   workflow_dispatch:
 
 jobs:
-  download:
+  test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Télécharger les données officielles
+      - name: Lire les paramètres NocoDB
+        env:
+          NOCODB_TOKEN: ${{ secrets.NOCODB_TOKEN }}
         run: |
-          curl -L \
-            "http://data.assemblee-nationale.fr/static/openData/repository/17/loi/dossiers_legislatifs/Dossiers_Legislatifs.json.zip" \
-            -o assemblee.zip
-
-      - name: Inspecter un dossier
-        run: |
-          fichier=$(unzip -Z1 assemblee.zip | grep '^json/dossierParlementaire/.*\.json$' | head -1)
-          echo "Fichier sélectionné : $fichier"
-          echo ""
-          echo "Contenu :"
-          unzip -p assemblee.zip "$fichier" | python -m json.tool | head -120
+          curl -s \
+            "https://app.nocodb.com/api/v2/tables/m11t0ljstiom0gs/records" \
+            -H "accept: application/json" \
+            -H "xc-token: $NOCODB_TOKEN"
