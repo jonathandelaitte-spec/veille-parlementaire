@@ -1,0 +1,19 @@
+name: Test données Assemblée nationale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Télécharger les données officielles
+        run: |
+          curl -L \
+            "http://data.assemblee-nationale.fr/static/openData/repository/17/loi/dossiers_legislatifs/Dossiers_Legislatifs.json.zip" \
+            -o assemblee.zip
+
+      - name: Inspecter le fichier
+        run: |
+          unzip -l assemblee.zip | head -30
