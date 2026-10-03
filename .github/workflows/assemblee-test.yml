@@ -8,11 +8,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Lire les paramètres NocoDB
+      - name: Récupérer les paramètres NocoDB
         env:
           NOCODB_TOKEN: ${{ secrets.NOCODB_TOKEN }}
         run: |
+          echo "========================================"
+          echo "RÉCUPÉRATION DES PARAMÈTRES DE VEILLE"
+          echo "========================================"
+
           curl -sS \
-            "https://app.nocodb.com/api/v2/tables/m11t0ljstiom0gs/records" \
+            "https://app.nocodb.com/api/v2/tables/m11t0ljstiom0gs/records?limit=100" \
             -H "accept: application/json" \
-            -H "xc-token: $NOCODB_TOKEN"
+            -H "xc-token: $NOCODB_TOKEN" \
+            -o parametres.json
+
+          echo ""
+          echo "Nombre total de paramètres récupérés :"
+          jq '.list | length' parametres.json
+
+          echo ""
+          echo "========================================"
+          echo "THÉMATIQUES ACTIVES"
+          echo "========================================"
+
+          jq -r '
+            .list[]
+            | select(.Type == "Thématique" and .Actif == true)
+            | "🟢 " + .Valeur
+          ' parametres.json
+
+          echo ""
+          echo "========================================"
+          echo "MOTS-CLÉS ACTIFS"
+          echo "========================================"
+
+          jq -r '
+            .list[]
+            | select(.Type == "Mot-clé" and .Actif == true)
+            | "🔎 " + .Valeur
+          ' parametres.json
+
+          echo ""
+          echo "========================================"
+          echo "FIN DU TEST"
+          echo "========================================"
