@@ -9,10 +9,163 @@ jobs:
 
     steps:
 
-      # ==========================================================
-      # 1. Récupérer les paramètres depuis NocoDB
-      # ==========================================================
       - name: Récupérer les paramètres NocoDB
         env:
           NOCODB_TOKEN: ${{ secrets.NOCODB_TOKEN }}
         run: |
+          echo "========================================"
+          echo "1. PARAMÈTRES DE VEILLE"
+          echo "========================================"
+
+          curl -sS \
+            "https://app.nocodb.com/api/v2/tables/m11t0ljstiom0gs/records?limit=100" \
+            -H "accept: application/json" \
+            -H "xc-token: $NOCODB_TOKEN" \
+            -o parametres.json
+
+          jq -r '
+            .list[]
+            | select(.Type == "Mot-clé" and .Actif == true)
+            | .Valeur
+          ' parametres.json > mots_cles.txt
+
+          echo "Mots-clés actifs :"
+          cat mots_cles.txt
+
+
+      - name: Télécharger les données de l'Assemblée nationale
+        run: |
+          echo ""
+          echo "========================================"
+          echo "2. ASSEMBLÉE NATIONALE"
+          echo "========================================"
+
+          curl -L \
+            "http://data.assemblee-nationale.fr/static/openData/repository/17/loi/dossiers_legislatifs/Dossiers_Legislatifs.json.zip" \
+            -o assemblee.zip
+
+          echo "Téléchargement terminé."
+
+          echo "Nombre de fichiers JSON :"
+
+          unzip -Z1 assemblee.zip \
+            | grep '^json/dossierParlementaire/.*\.json$' \
+            | wc -l
+
+
+      - name: Rechercher les dossiers pertinents
+        run: |
+          echo ""
+          echo "========================================"
+          echo "3. RECHERCHE DES DOSSIERS"
+          echo "========================================"
+
+          python3 <<'PY'
+          import zipfile
+          import json
+          import unicodedata
+
+          def normaliser(texte):
+              texte = str(texte or "").lower()
+              texte = unicodedata.normalize("NFD", texte)
+              return "".join(
+                  c for c in texte
+                  if unicodedata.category(c) != "Mn"
+              )
+
+          with open("mots_cles.txt", encoding="utf-8") as f:
+              mots_cles = [
+                  ligne.strip()
+                  for ligne in f
+                  if ligne.strip()
+              ]
+
+          mots_cles = [
+              (mot, normaliser(mot))
+              for mot in mots_cles
+          ]
+
+          resultats = []
+
+          with zipfile.ZipFile("assemblee.zip") as z:
+
+              fichiers = [
+                  nom for nom in z.namelist()
+                  if nom.startswith("json/dossierParlementaire/")
+                  and nom.endswith(".json")
+              ]
+
+              for fichier in fichiers:
+
+                  try:
+                      data = json.loads(z.read(fichier))
+                      dossier = data.get("dossierParlementaire", {})
+
+                      uid = dossier.get("uid", "")
+
+                      titre_data = dossier.get("titreDossier", {})
+                      titre = titre_data.get("titre", "")
+
+                      procedure = dossier.get(
+                          "procedureParlementaire", {}
+                      )
+
+                      type_dossier = procedure.get(
+                          "libelle", ""
+                      )
+
+                      titre_normalise = normaliser(titre)
+
+                      matches = [
+                          mot_original
+                          for mot_original, mot_normalise in mots_cles
+                          if mot_normalise in titre_normalise
+                      ]
+
+                      if matches:
+                          resultats.append({
+                              "titre": titre,
+                              "type": type_dossier,
+                              "uid": uid,
+                              "mots_cles": matches
+                          })
+
+                  except Exception:
+                      pass
+
+          print("")
+          print("========================================")
+          print("RÉSULTATS")
+          print("========================================")
+
+          print(
+              "Nombre de dossiers trouvés :",
+              len(resultats)
+          )
+
+          print("")
+
+          for i, resultat in enumerate(resultats[:50], 1):
+
+              print("----------------------------------------")
+              print(f"RESULTAT #{i}")
+              print("----------------------------------------")
+              print("Titre :", resultat["titre"])
+              print("Type :", resultat["type"])
+              print("Identifiant :", resultat["uid"])
+              print(
+                  "Mot-clé :",
+                  ", ".join(resultat["mots_cles"])
+              )
+
+          if len(resultats) > 50:
+              print("")
+              print(
+                  f"{len(resultats) - 50} résultats supplémentaires non affichés."
+              )
+
+          print("")
+          print("========================================")
+          print("FIN")
+          print("========================================")
+
